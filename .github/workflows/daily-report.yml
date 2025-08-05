@@ -1,0 +1,24 @@
+name: Daily Analytics Report
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # 9 AM EDT daily
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    - run: npm install axios nodemailer
+    - run: node report.js
+      env:
+        MAILCHIMP_API_KEY: ${{ secrets.MAILCHIMP_API_KEY }}
+        MAILCHIMP_SERVER: ${{ secrets.MAILCHIMP_SERVER }}
+        POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+        POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        GMAIL_USER: ${{ secrets.GMAIL_USER }}
+        GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
