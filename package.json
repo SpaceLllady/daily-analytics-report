@@ -1,0 +1,13 @@
+{
+  "name": "daily-analytics-report",
+  "version": "1.0.0",
+  "description": "",
+  "main": "report.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
