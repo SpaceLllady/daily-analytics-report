@@ -153,4 +153,8 @@ async function main() {
   console.log('✅ Report sent successfully!');
 }
 
-main().catch(console.error);
+if (require.main === module) {
+  main().catch(console.error);
+}
+
+module.exports = { getMailchimpData, getPostHogData, sendReport, main };
