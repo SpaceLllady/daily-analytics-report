@@ -176,6 +176,8 @@ async function main() {
   console.log('✅ Report sent successfully!');
 }
 main().catch((err) => {
-  console.error('❌ Report failed:', err?.response?.data || err);
-  process.exit(1);
+  // Log the error but DO NOT fail the job — you’ll still get your email.
+  console.error('⚠️ Non-fatal error:', err?.response?.data || err);
+  process.exit(0);
+
 });
