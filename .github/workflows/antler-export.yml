@@ -34,6 +34,16 @@ jobs:
               value = re.sub(r"<[^>]+>", " ", value or "")
               return re.sub(r"\s+", " ", html.unescape(value)).strip()
 
+          def clickable_url(card):
+              for anchor in re.findall(r'<a\b[^>]*>', card, flags=re.I):
+                  class_m = re.search(r'class="([^"]*)"', anchor, flags=re.I)
+                  if not class_m or "clickable_link" not in class_m.group(1).split():
+                      continue
+                  href_m = re.search(r'href="([^"]+)"', anchor, flags=re.I)
+                  if href_m:
+                      return html.unescape(href_m.group(1)).strip()
+              return ""
+
           rows, seen_pages = [], set()
           page = 1
           while page not in seen_pages and page <= 100:
@@ -47,11 +57,10 @@ jobs:
                   name_m = re.search(r'fs-cmsfilter-field="name"[^>]*>([\s\S]*?)</p>', card)
                   desc_m = re.search(r'fs-cmsfilter-field="description"[^>]*>([\s\S]*?)</p>', card)
                   tags = [clean(x) for x in re.findall(r'class="tag_small_text"[^>]*>([\s\S]*?)</div>', card)]
-                  url_m = re.search(r'class="clickable_link[^>]*href="([^"]+)"', card)
                   name = clean(name_m.group(1) if name_m else "")
                   if not name:
                       continue
-                  company_url = html.unescape(url_m.group(1)).strip() if url_m else ""
+                  company_url = clickable_url(card)
                   if company_url.startswith("//"):
                       company_url = "https:" + company_url
                   rows.append({
