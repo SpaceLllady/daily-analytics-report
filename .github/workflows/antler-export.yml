@@ -3,13 +3,14 @@ name: Temporary Antler export
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   export:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,10 +98,18 @@ jobs:
               writer.writerows(rows)
           print(json.dumps({"pages": len(seen_pages), "rows": len(rows), "missing_urls": sum(not r['company_url'] for r in rows), "missing_descriptions": sum(not r['description'] for r in rows)}))
           PY
-      - name: Commit export
+      - name: Upload export artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: antler-portfolio-export
+          path: |
+            antler_portfolio.csv
+            antler_portfolio.json
+      - name: Commit export on main push
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add antler_portfolio.json antler_portfolio.csv
-          git commit -m "Temporary Antler portfolio export [skip ci]"
+          git commit -m "Temporary Antler portfolio export [skip ci]" || exit 0
           git push
