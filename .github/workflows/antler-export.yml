@@ -1,0 +1,97 @@
+name: Temporary Antler export
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export Antler portfolio
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, html, json, re, time
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+          from datetime import datetime, timezone
+
+          BASE = "https://www.antler.co/portfolio"
+          CARD_START = '<div role="listitem" class="w-dyn-item"><div class="portco_card">'
+
+          def fetch(url):
+              req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; portfolio-data-export/1.0)"})
+              with urlopen(req, timeout=60) as response:
+                  return response.read().decode("utf-8", errors="replace")
+
+          def clean(value):
+              value = re.sub(r"<[^>]+>", " ", value or "")
+              return re.sub(r"\s+", " ", html.unescape(value)).strip()
+
+          rows, seen_pages = [], set()
+          page = 1
+          while page not in seen_pages and page <= 100:
+              seen_pages.add(page)
+              page_url = f"{BASE}?0b933bfd_page={page}"
+              text = fetch(page_url)
+              cards = text.split(CARD_START)[1:]
+              if not cards:
+                  raise RuntimeError(f"No portfolio cards found on page {page}")
+              for card in cards:
+                  name_m = re.search(r'fs-cmsfilter-field="name"[^>]*>([\s\S]*?)</p>', card)
+                  desc_m = re.search(r'fs-cmsfilter-field="description"[^>]*>([\s\S]*?)</p>', card)
+                  tags = [clean(x) for x in re.findall(r'class="tag_small_text"[^>]*>([\s\S]*?)</div>', card)]
+                  url_m = re.search(r'class="clickable_link[^>]*href="([^"]+)"', card)
+                  name = clean(name_m.group(1) if name_m else "")
+                  if not name:
+                      continue
+                  company_url = html.unescape(url_m.group(1)).strip() if url_m else ""
+                  if company_url.startswith("//"):
+                      company_url = "https:" + company_url
+                  rows.append({
+                      "source_position": len(rows) + 1,
+                      "company_name": name,
+                      "description": clean(desc_m.group(1) if desc_m else ""),
+                      "company_url": company_url,
+                      "location": tags[0] if len(tags) > 0 else "",
+                      "sector": tags[1] if len(tags) > 1 else "",
+                      "portfolio_year": tags[2] if len(tags) > 2 else "",
+                      "antler_listing_page": page_url,
+                      "page_number": page,
+                  })
+              next_m = re.search(r'href="\?0b933bfd_page=(\d+)"[^>]*aria-label="Next Page"', text)
+              if not next_m:
+                  break
+              page = int(next_m.group(1))
+              time.sleep(0.25)
+
+          if len(rows) < 1000:
+              raise RuntimeError(f"Unexpectedly low row count: {len(rows)}")
+
+          payload = {
+              "source": BASE,
+              "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
+              "page_count": len(seen_pages),
+              "row_count": len(rows),
+              "rows": rows,
+          }
+          Path("antler_portfolio.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+          with open("antler_portfolio.csv", "w", newline="", encoding="utf-8-sig") as file:
+              writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+              writer.writeheader()
+              writer.writerows(rows)
+          print(json.dumps({"pages": len(seen_pages), "rows": len(rows), "missing_urls": sum(not r['company_url'] for r in rows), "missing_descriptions": sum(not r['description'] for r in rows)}))
+          PY
+      - name: Commit export
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add antler_portfolio.json antler_portfolio.csv
+          git commit -m "Temporary Antler portfolio export [skip ci]"
+          git push
